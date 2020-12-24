@@ -1,2 +1,2 @@
-# arduino-pulsed-motor-driver
+# Arduino Pulsed Motor Driver
 Turn your Arduino into a controller and monitor for pulsed electric motors, like the Adams Motor or the Bedini SG.
