@@ -44,22 +44,23 @@
 #define HALL_SENSOR   2         // HALL SENSOR: Digital IN 2
 #define DUTY_POT      A0        // Analog IN A0
 #define DELAY_POT     A1        // Analog IN A1
-#define DRIVE_COIL    8         // DRIVE COIL: Digital OUTPUT 8
+#define DRIVE_COIL    9         // DRIVE COIL: Digital OUTPUT 9
 
 static int rpm = 0;             // Moving average RPM
-volatile int rpm_array[5];      // Array with 5 samples to calculate moving average RPM
+static int rpm_array[5];      // Array with 5 samples to calculate moving average RPM
 static int index = 0;           // Number between 0 - 4, indicates place in rpm_array to replace
 
-volatile float period = 0;      // Time between magnets passing by Hall sensor
-volatile float last_fall = 0;   // Time of previous Hall trigger falling edge
-volatile float hall_period = 0; // Time during which Hall sensor was ON, half of that is rotor magnet aligned with center of drive core
-static bool hall = false;
+volatile unsigned long now = 0;         // Current time in µS
+volatile unsigned long period = 0;      // Time between magnets passing by Hall sensor
+volatile unsigned long last_fall = 0;   // Time of previous Hall trigger falling edge
+volatile unsigned long hall_period = 0; // Time during which Hall sensor was ON, half of that is rotor magnet aligned with center of drive core
+volatile bool hall = false;
 
-static int duty_value = 0;      // Analog value from duty pot, 0 - 1023
-static int delay_value = 0;     // analog value from delay pot, 0 - 1023
-static int pulse_delay = 0;     // Pulse delay in µS after Hall interrupt, controlled by potentiometer
-static int pulse_degrees = 0;   // Degrees before or after the rotor magnet aligns with drive core at which the pulse started
-static int pulse_time = 0;      // Pulse duration in µS, controlled by potentiometer
+static int duty_value = 0;              // Analog value from duty pot, 0 - 1023
+static int delay_value = 0;             // analog value from delay pot, 0 - 1023
+static unsigned long pulse_delay = 0;   // Pulse delay in µS after Hall interrupt, controlled by potentiometer
+static int pulse_degrees = 0;           // Degrees before or after the rotor magnet aligns with drive core at which the pulse started
+static unsigned long pulse_time = 0;    // Pulse duration in µS, controlled by potentiometer
 
 
 /**
@@ -88,6 +89,8 @@ void setup() {
  */
 void loop() 
 {  
+  now = micros();
+  
   get_pots();         // Read potentiometer values
   
   calc_rpm();         // Calculate the RPM
@@ -120,7 +123,7 @@ void get_pots()
  */
 void calc_rpm()
 {  
-  if(period > 10)
+  if (period > 10)
   {  
     // Calculate RPM
     if (index > 4)
@@ -128,7 +131,7 @@ void calc_rpm()
         index = 0;      // Reset index
     }
     
-    rpm_array[index] = 60*(1000000/(period*NUMB_POLES));
+    rpm_array[index] = 60*((float) 1000000/(period*NUMB_POLES));
       
     // Compute the avg rpm
     rpm = (rpm_array[0] + rpm_array[1] + rpm_array[2] + rpm_array[3] + rpm_array[4]) / 5;
@@ -152,7 +155,7 @@ void send_pulse()
     // South pole passed by Hall sensor
     hall = false;                     // Reset hall variable
 
-    pulse_delay = period * ((float) delay_value/1023);  // Delay is a % of the period, so will pulse at same point for low and high RPMs
+    pulse_delay = (period * delay_value) / 1023;  // Delay is a % of the period, so will pulse at same point for low and high RPMs
     
     // Calculate degrees of delay from drive core center
     // Drive core center is hall_period/2
@@ -161,10 +164,12 @@ void send_pulse()
     // A negative value means pulsed before rotor magnet was aligned with the drive coil core
     pulse_degrees = (pulse_delay - ((float) hall_period / 2))/(period / (360 / NUMB_POLES));
     
-    pulse_time = period * ((float) duty_value/1023);    // Multiply period by duty cycle to get pulse ON time
+    pulse_time = (period * duty_value) / 1023;    // Multiply period by duty cycle to get pulse ON time
     
+    // TODO: DON'T USE DELAY?
     delayMicroseconds(pulse_delay);   // Delay pulse ON by value from potentiometer
 
+    // TODO: USE DIRECT PORT MANIPULATION?
     digitalWrite(DRIVE_COIL, HIGH);   // Turn pulse ON
     digitalWrite(LED_BUILTIN, HIGH);  // Turn LED ON
 
@@ -196,6 +201,10 @@ void print_data()
   Serial.print(",");
   Serial.print(pulse_time);
   Serial.print(",");
+  Serial.print(pulse_delay);
+  Serial.print(",");
+  Serial.print(period);
+  Serial.print(",");
   Serial.println(pulse_degrees);
 }
 
@@ -208,11 +217,15 @@ void hall_trigger()
   if (PIND & (1<<PD2))  // Direct read of digital pin 2 for much faster processing than digitalRead()
   {
     // Rising edge
-    hall_period = (micros() - last_fall);
+    hall_period = now - last_fall;
   } else {
     // Falling edge
-    period = (micros() - last_fall);
-    last_fall = micros();
-    hall = true;
+    period = now - last_fall;
+
+    if (period > 10)
+    {  
+      last_fall = now;
+      hall = true;
+    }
   }
 }
