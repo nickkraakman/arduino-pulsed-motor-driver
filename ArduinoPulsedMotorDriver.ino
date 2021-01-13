@@ -16,7 +16,7 @@
   * A1: 10K potentiometer to control pulse timing
 
   Outputs:
-  * D52: Drive coil(s)
+  * D8: Drive coil(s)
 
   Created 22/12/2020
   By Nick Kraakman
@@ -39,22 +39,22 @@
 /** 
  * Variables
  */
+#define NUMB_POLES    4         // Number of rotor magnet poles
+
 #define HALL_SENSOR   2         // HALL SENSOR: Digital IN 2
 #define DUTY_POT      A0        // Analog IN A0
 #define DELAY_POT     A1        // Analog IN A1
-#define DRIVE_COIL    52        // DRIVE COIL: Digital OUTPUT 52
-
-#define NUMB_POLES    4         // Number of rotor magnet poles
+#define DRIVE_COIL    8         // DRIVE COIL: Digital OUTPUT 8
 
 static int rpm = 0;             // Moving average RPM
 volatile int rpm_array[5];      // Array with 5 samples to calculate moving average RPM
-static int index = 0;           // Number between 0 - 4, indicates place in array to replace
+static int index = 0;           // Number between 0 - 4, indicates place in rpm_array to replace
 
 volatile float period = 0;      // Time between magnets passing by Hall sensor
 volatile float last_fall = 0;   // Time of previous Hall trigger falling edge
 volatile float hall_period = 0; // Time during which Hall sensor was ON, half of that is rotor magnet aligned with center of drive core
-
 static bool hall = false;
+
 static int duty_value = 0;      // Analog value from duty pot, 0 - 1023
 static int delay_value = 0;     // analog value from delay pot, 0 - 1023
 static int pulse_delay = 0;     // Pulse delay in µS after Hall interrupt, controlled by potentiometer
@@ -99,8 +99,6 @@ void loop()
   //get_bat_v();      // Get battery voltage
 
   send_pulse();       // Send pulse to drive coils
-
-  print_data();       // Print data to serial port
 }
 
 
@@ -111,6 +109,7 @@ void get_pots()
 {
   duty_value = analogRead(DUTY_POT);
   delay_value = analogRead(DELAY_POT);
+  delay(1);           // delay in between reads for stability
 }
 
 
@@ -153,16 +152,16 @@ void send_pulse()
     // South pole passed by Hall sensor
     hall = false;                     // Reset hall variable
 
-    pulse_delay = period * (delay_value/1023);  // Delay is a % of the period, so will pulse at same point for low and high RPMs
-
+    pulse_delay = period * ((float) delay_value/1023);  // Delay is a % of the period, so will pulse at same point for low and high RPMs
+    
     // Calculate degrees of delay from drive core center
     // Drive core center is hall_period/2
     // During period, rotor turns 360º/number of poles
     // So period/(360/NUMB_POLES) = time per degree of rotation
     // A negative value means pulsed before rotor magnet was aligned with the drive coil core
-    pulse_degrees = (pulse_delay - (hall_period / 2))/(period / (360 / NUMB_POLES));
+    pulse_degrees = (pulse_delay - ((float) hall_period / 2))/(period / (360 / NUMB_POLES));
     
-    pulse_time = period * (duty_value/1023);    // Multiply period by duty cycle to get pulse ON time
+    pulse_time = period * ((float) duty_value/1023);    // Multiply period by duty cycle to get pulse ON time
     
     delayMicroseconds(pulse_delay);   // Delay pulse ON by value from potentiometer
 
@@ -173,6 +172,8 @@ void send_pulse()
       
     digitalWrite(DRIVE_COIL, LOW);    // Turn pulse OFF
     digitalWrite(LED_BUILTIN, LOW);   // Turn LED OFF
+
+    print_data();                     // Print data to serial port each time pulse is triggered
   }
 }
 
@@ -191,7 +192,7 @@ void print_data()
   //Serial.print(",");
   //Serial.print(bat_v);
   //Serial.print(",");
-  Serial.print((duty_value/1023)*100);    // Duty cycle in %
+  Serial.print(((float) duty_value/1023)*100);    // Duty cycle in %
   Serial.print(",");
   Serial.print(pulse_time);
   Serial.print(",");
@@ -211,11 +212,7 @@ void hall_trigger()
   } else {
     // Falling edge
     period = (micros() - last_fall);
-
-    if (period > 10)  // Only process new trigger after 10 microseconds have passed for more stability
-    {
-      last_fall = micros();
-      hall = true;
-    }
+    last_fall = micros();
+    hall = true;
   }
 }
