@@ -173,7 +173,7 @@ void send_pulse()
   }
 
   // Turn pulse OFF after delay and pulse time in non-blocking way
-  If (hall && last_fall + pulse_delay + pulse_time > now)
+  if (hall && last_fall + pulse_delay + pulse_time > now)
   {
     //digitalWrite(DRIVE_COIL, LOW);    // Turn pulse OFF
     PORTB &= ~(1<<PB1);                 // Set digital port 9 LOW directly, digitalWrite too slow
