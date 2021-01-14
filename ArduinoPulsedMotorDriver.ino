@@ -53,7 +53,8 @@ volatile unsigned long now = 0;         // Current time in µS
 volatile unsigned long period = 0;      // Time between magnets passing by Hall sensor
 volatile unsigned long last_fall = 0;   // Time of previous Hall trigger falling edge
 volatile unsigned long hall_period = 0; // Time during which Hall sensor was ON, half of that is rotor magnet aligned with center of drive core
-volatile bool hall = false;
+volatile bool hall = false;             // True if Hall sensor has been triggered, false once pulse completes
+static bool high = false;               // True if pulse is HIGH, false if LOW
 
 static int duty_value = 0;              // Analog value from duty pot, 0 - 1023
 static int delay_value = 0;             // analog value from delay pot, 0 - 1023
@@ -165,20 +166,23 @@ void send_pulse()
 
   // Turn pulse ON after delay in non-blocking way
   // @TODO: handle micros overflow
-  if (hall && last_fall + pulse_delay > now)
+  if (hall && !high && now - last_fall >= pulse_delay)
   {
     //digitalWrite(DRIVE_COIL, HIGH);   // Turn pulse ON
     PORTB |= (1<<PB1);                  // Set digital port 9 HIGH directly, digitalWrite too slow
     digitalWrite(LED_BUILTIN, HIGH);    // Turn LED ON
+    
+    high = true;
   }
 
   // Turn pulse OFF after delay and pulse time in non-blocking way
-  if (hall && last_fall + pulse_delay + pulse_time > now)
+  if (hall && high && now - last_fall >= pulse_delay + pulse_time)
   {
     //digitalWrite(DRIVE_COIL, LOW);    // Turn pulse OFF
     PORTB &= ~(1<<PB1);                 // Set digital port 9 LOW directly, digitalWrite too slow
     digitalWrite(LED_BUILTIN, LOW);     // Turn LED OFF
-
+    
+    high = false;
     hall = false;                       // Reset hall variable
   }
 }
