@@ -16,7 +16,7 @@
   * A1: 10K potentiometer to control pulse timing
 
   Outputs:
-  * D8: Drive coil(s)
+  * D8: Base of MJL21194 or similar NPN transistor, which powers the drive coil(s)
 
   Created 22/12/2020
   By Nick Kraakman
