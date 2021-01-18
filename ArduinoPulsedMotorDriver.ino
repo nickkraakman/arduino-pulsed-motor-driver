@@ -46,7 +46,7 @@
 #define DELAY_POT     A1        // Analog IN A1
 #define DRIVE_COIL    9         // DRIVE COIL: Digital OUTPUT 9
 
-static unsigned long periods[SAMPLES]   // Moving average period using several samples
+static unsigned long periods[SAMPLES];  // Moving average period using several samples
 static byte index = 0;                  // Indicates current place in period_array
 static unsigned long sum = 0;           // Running total of period samples
 
