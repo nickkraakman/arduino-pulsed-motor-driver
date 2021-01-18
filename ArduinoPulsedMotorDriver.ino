@@ -39,15 +39,16 @@
  * Variables
  */
 #define NUMB_POLES    4         // Number of rotor magnet poles
+#define SAMPLES       8         // Number of samples used to smooth the period measurement
 
 #define HALL_SENSOR   2         // HALL SENSOR: Digital IN 2
 #define DUTY_POT      A0        // Analog IN A0
 #define DELAY_POT     A1        // Analog IN A1
 #define DRIVE_COIL    9         // DRIVE COIL: Digital OUTPUT 9
 
-static int rpm = 0;             // Moving average RPM
-static int rpm_array[5];        // Array with 5 samples to calculate moving average RPM
-static int index = 0;           // Number between 0 - 4, indicates place in rpm_array to replace
+static unsigned long periods[SAMPLES]   // Moving average period using several samples
+static byte index = 0;                  // Indicates current place in period_array
+static unsigned long sum = 0;           // Running total of period samples
 
 volatile unsigned long now = 0;         // Current time in µS
 volatile unsigned long period = 0;      // Time between magnets passing by Hall sensor
@@ -95,14 +96,6 @@ void loop()
   now = micros();
   
   get_pots();         // Read potentiometer values
-  
-  calc_rpm();         // Calculate the RPM
-
-  //get_temp();       // Get temperature of the drive coil core
-
-  //get_current_in(); // Get input current
-
-  //get_bat_v();      // Get battery voltage
 
   send_pulse();       // Send pulse to drive coils
 
@@ -125,46 +118,20 @@ void get_pots()
 }
 
 
-/** 
- * Calculate moving average RPM based on 5 samples
- * 
- * @see https://forum.arduino.cc/index.php?topic=211722.0
- */
-void calc_rpm()
-{   
-  // Calculate RPM
-  if (index > 4)
-  {
-      index = 0;      // Reset index
-  }
-  
-  rpm_array[index] = 60*((float) 1000000/(period*NUMB_POLES));
-    
-  // Compute the avg rpm
-  rpm = (rpm_array[0] + rpm_array[1] + rpm_array[2] + rpm_array[3] + rpm_array[4]) / 5;
-
-  index = index + 1;  // Increment index by 1
-}
-
-
 /**
  * Send pulse to the drive coils
  */
 void send_pulse()
 { 
-  // Calculate pulse delay and pulse time
-  // We divide by 2046 instead of 1023, because we only want a maximum of 1/2 period of delay
-  // This also gives our potentiometer more resolution and thus allows for finer adjustments
-  pulse_delay = (period * delay_value) / 2046;    // Delay is a % of the period, so will pulse at same point for low and high RPMs
-  
-  pulse_time = (period * duty_value) / 1023;      // Multiply period by duty cycle to get pulse ON time
-
-  // Calculate degrees of delay from drive core center
-  // Drive core center is hall_period/2
-  // During period, rotor turns 360º/number of poles
-  // So period/(360/NUMB_POLES) = time per degree of rotation
-  // A negative value means pulsed before rotor magnet was aligned with the drive coil core
-  pulse_degrees = (pulse_delay - ((float) hall_period / 2))/(period / (360 / NUMB_POLES));
+  if (hall)
+  {
+    // Calculate pulse delay and pulse time
+    // We divide by 2048 instead of 1024, because we only want a maximum of 1/2 period of delay
+    // This also gives our potentiometer more resolution and thus allows for finer adjustments
+    pulse_delay = (period * delay_value) / 2048;    // Delay is a % of the period, so will pulse at same point for low and high RPMs
+    
+    pulse_time = (period * duty_value) / 1024;      // Multiply period by duty cycle to get pulse ON time
+  }
 
   // Turn pulse ON after delay in non-blocking way
   // @TODO: handle micros overflow
@@ -172,7 +139,7 @@ void send_pulse()
   {
     //digitalWrite(DRIVE_COIL, HIGH);   // Turn pulse ON
     PORTB |= (1<<PB1);                  // Set digital port 9 HIGH directly, digitalWrite too slow
-    digitalWrite(LED_BUILTIN, HIGH);    // Turn LED ON
+    //digitalWrite(LED_BUILTIN, HIGH);    // Turn LED ON
     
     high = true;
   }
@@ -182,7 +149,7 @@ void send_pulse()
   {
     //digitalWrite(DRIVE_COIL, LOW);    // Turn pulse OFF
     PORTB &= ~(1<<PB1);                 // Set digital port 9 LOW directly, digitalWrite too slow
-    digitalWrite(LED_BUILTIN, LOW);     // Turn LED OFF
+    //digitalWrite(LED_BUILTIN, LOW);     // Turn LED OFF
     
     high = false;
     hall = false;                       // Reset hall variable
@@ -193,22 +160,23 @@ void send_pulse()
 /**
  * Send data to serial port in CSV format
  * This data can then be plotted using SerialPlot, for example
+ * We calculate a few things here that are only needed for printing, 
+ * not for controlling the motor
  */
 void print_data()
 {
   if (millis() - last_print > 1000)
   {
-    last_print = millis();
+    // Calculate degrees of delay from drive core center
+    // Drive core center is hall_period/2
+    // During period, rotor turns 360º/number of poles
+    // So period/(360/NUMB_POLES) = time per degree of rotation
+    // A negative value means pulsed before rotor magnet was aligned with the drive coil core
+    pulse_degrees = (pulse_delay - ((float) hall_period / 2))/(period / (360 / NUMB_POLES));
     
-    Serial.print(rpm); 
+    Serial.print(60*((float) 1000000/(period*NUMB_POLES))); // RPM
     Serial.print(",");
-    //Serial.print(current_in);
-    //Serial.print(",");
-    //Serial.print(core_temp);
-    //Serial.print(",");
-    //Serial.print(bat_v);
-    //Serial.print(",");
-    Serial.print(((float) duty_value/1023)*100);    // Duty cycle in %
+    Serial.print(((float) duty_value/1024)*100);            // Duty cycle in %
     Serial.print(",");
     Serial.print(pulse_time);
     Serial.print(",");
@@ -217,6 +185,8 @@ void print_data()
     Serial.print(period);
     Serial.print(",");
     Serial.println(pulse_degrees);
+
+    last_print = millis();
   }
 }
 
@@ -232,9 +202,26 @@ void hall_trigger()
     hall_period = now - last_fall;
   } else {
     // Falling edge
-    period = now - last_fall;
+    
+    // Calculate moving average period
+    sum = sum - periods[index];         // Subtract last reading
 
-    last_fall = now;
+    periods[index] = now - last_fall;   // Calculate period and store in array
+
+    index = index + 1;                  // Move pointer to next position in index
+
+    // If we're at the end of the array...
+    if (index >= SAMPLES) {
+      index = 0;                        // Reset index
+    }
+
+    if (sum > 0) {
+      period = sum / SAMPLES;           // Calculate the moving average
+    } else {
+      period = periods[index - 1];      // Until we have filled our array to calculate a running average, use the raw readings
+    }
+
+    last_fall = now;                    // Set time of this trigger for the next trigger
     hall = true;
   }
 }
