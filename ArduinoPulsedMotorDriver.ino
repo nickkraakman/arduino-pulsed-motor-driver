@@ -153,9 +153,11 @@ void calc_rpm()
 void send_pulse()
 { 
   // Calculate pulse delay and pulse time
-  pulse_delay = (period * delay_value) / 1023;  // Delay is a % of the period, so will pulse at same point for low and high RPMs
+  // We divide by 2046 instead of 1023, because we only want a maximum of 1/2 period of delay
+  // This also gives our potentiometer more resolution and thus allows for finer adjustments
+  pulse_delay = (period * delay_value) / 2046;    // Delay is a % of the period, so will pulse at same point for low and high RPMs
   
-  pulse_time = (period * duty_value) / 1023;    // Multiply period by duty cycle to get pulse ON time
+  pulse_time = (period * duty_value) / 1023;      // Multiply period by duty cycle to get pulse ON time
 
   // Calculate degrees of delay from drive core center
   // Drive core center is hall_period/2
