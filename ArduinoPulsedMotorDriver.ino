@@ -204,9 +204,11 @@ void hall_trigger()
     // Falling edge
     
     // Calculate moving average period
-    sum = sum - periods[index];         // Subtract last reading
+    sum = sum - periods[index];         // Subtract last period
 
     periods[index] = now - last_fall;   // Calculate period and store in array
+
+    sum = sum + periods[index];         // Add current period
 
     index = index + 1;                  // Move pointer to next position in index
 
