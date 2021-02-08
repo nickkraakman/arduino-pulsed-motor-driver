@@ -1,5 +1,5 @@
 /*
-  Pulsed Motor Driver v0.1 by Waveguide
+  Pulsed Motor Driver v0.2 by Waveguide
 
   This sketch turns your Arduino into a controller and monitor for 
   pulsed electric motors, like the Adams Motor or the Bedini SG.
@@ -74,7 +74,7 @@ void setup() {
   // Start serial output
   Serial.begin(9600);  // Could be set to a higher baud value if needed
   delay(1000);
-  Serial.println("\n\n*** Pulsed Motor Driver v0.1 by Waveguide ***\n\n");
+  Serial.println("\n\n*** Pulsed Motor Driver v0.2 by Waveguide ***\n\n");
 
   // Set pin modes
   pinMode(HALL_SENSOR, INPUT_PULLUP);
