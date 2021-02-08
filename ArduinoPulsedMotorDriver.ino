@@ -16,14 +16,14 @@
   * A1: 10K potentiometer to control pulse timing
 
   Outputs:
-  * D8: Base of MJL21194 or similar NPN transistor, which powers the drive coil(s)
+  * D8: Base of MJL21193 or similar PNP transistor, which powers the drive coil(s)
 
   Created 22/12/2020
   By Nick Kraakman
-  Modified 23/12/2020
+  Modified 08/02/2021
   By Nick Kraakman
 
-  https://waveguide.blog >> ***ADD LINK TO BLOG POST HERE ***
+  https://waveguide.blog/adams-motor-generator/
 
   TODO:   
   - implement input current sensing
@@ -134,11 +134,12 @@ void send_pulse()
   }
 
   // Turn pulse ON after delay in non-blocking way
+  // Since we're using a PNP high-side switch, pin LOW = pulse ON
   // @TODO: handle micros overflow
   if (hall && !high && now - last_fall >= pulse_delay)
   {
-    //digitalWrite(DRIVE_COIL, HIGH);   // Turn pulse ON
-    PORTB |= (1<<PB1);                  // Set digital port 9 HIGH directly, digitalWrite too slow
+    //digitalWrite(DRIVE_COIL, LOW);      // Turn pulse ON
+    PORTB &= ~(1<<PB1);                   // Set digital port 9 LOW directly, digitalWrite too slow
     //digitalWrite(LED_BUILTIN, HIGH);    // Turn LED ON
     
     high = true;
@@ -147,12 +148,12 @@ void send_pulse()
   // Turn pulse OFF after delay and pulse time in non-blocking way
   if (hall && high && now - last_fall >= pulse_delay + pulse_time)
   {
-    //digitalWrite(DRIVE_COIL, LOW);    // Turn pulse OFF
-    PORTB &= ~(1<<PB1);                 // Set digital port 9 LOW directly, digitalWrite too slow
+    //digitalWrite(DRIVE_COIL, HIGH);     // Turn pulse OFF
+    PORTB |= (1<<PB1);                    // Set digital port 9 HIGH directly, digitalWrite too slow
     //digitalWrite(LED_BUILTIN, LOW);     // Turn LED OFF
     
     high = false;
-    hall = false;                       // Reset hall variable
+    hall = false;                         // Reset hall variable
   }
 }
 
