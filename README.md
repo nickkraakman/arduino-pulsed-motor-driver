@@ -5,23 +5,25 @@ Using two potentiometers, you can control the duty cycle and the timing of the d
 
 The serial monitor also logs RPM, duty cycle, pulse duration, and the timing of the pulse in degrees from the drive core center.
 
-Inputs:
+## Inputs
 * D2: A3144 Hall effect sensor
 * A0: 10K potentiometer to control duty cycle
 * A1: 10K potentiometer to control pulse timing
 
-Outputs:
-* D52: Drive coil(s)
+## Outputs
+* D8: Base of MJL21193 or similar PNP transistor, which powers the drive coil(s)
 
 Created 22/12/2020
 By Nick Kraakman
-Modified 23/12/2020
+Modified 08/02/2021
 By Nick Kraakman
 
-https://waveguide.blog
+https://waveguide.blog/adams-motor-generator/
 
-TODO: 
-- implement acceleration logging   
+## Schematic
+![Schematic for v0.2](https://waveguide.blog/static/adams-motor-schematic-v0.2.png)
+
+## Todo  
 - implement input current sensing
 - implement input voltage sensing
 - implement power logging
