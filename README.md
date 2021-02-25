@@ -11,17 +11,17 @@ The serial monitor also logs RPM, duty cycle, pulse duration, and the timing of 
 * A1: 10K potentiometer to control pulse timing
 
 ## Outputs
-* D8: Base of MJL21193 or similar PNP transistor, which powers the drive coil(s)
+* D8: Base of MJL21194 or similar NPN transistor, which powers the drive coil(s)
 
 Created 22/12/2020
 By Nick Kraakman
-Modified 08/02/2021
+Modified 25/02/2021
 By Nick Kraakman
 
 https://waveguide.blog/adams-motor-generator/
 
 ## Schematic
-![Schematic for v0.2](https://waveguide.blog/static/adams-motor-schematic-v0.2.png)
+![Schematic for v0.2](https://waveguide.blog/static/adams/circuit-24-02-2021.png)
 
 ## Todo  
 - implement input current sensing
