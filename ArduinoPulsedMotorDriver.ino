@@ -49,6 +49,7 @@
 #define DRIVE_COIL    9         // DRIVE COIL: Digital OUTPUT 9
 
 static unsigned long periods[SAMPLES];  // Moving average period using several samples
+static bool periods_full = false;       // True if the periods array has been filled with samples
 static byte index = 0;                  // Indicates current place in period_array
 static unsigned long sum = 0;           // Running total of period samples
 
@@ -68,6 +69,7 @@ static unsigned long pulse_time = 0;    // Pulse duration in µS, controlled by 
 static unsigned long last_print = 0;    // Time of previous print to serial monitor in mS
 static unsigned long last_read = 0;     // Time of previous analogRead of potentiometers in mS
 
+static unsigned long default_period = 7000;  // While starting up, use this period  
 
 /**
  * Setup code, which runs once
@@ -131,9 +133,15 @@ void send_pulse()
     // We divide by 2048 instead of 1024, because we only want a maximum of 1/2 period of delay
     // This also gives our potentiometer more resolution and thus allows for finer adjustments
     pulse_delay = (period * delay_value) / 2048;    // Delay is a % of the period, so will pulse at same point for low and high RPMs
-    
+
     pulse_time = (period * duty_value) / 1024;      // Multiply period by duty cycle to get pulse ON time
-  }
+
+    // We set a minimum pulse time of 1000µS to help get the motor started
+    if (!periods_full && pulse_time < 1000)
+    {
+      pulse_time = 1000;
+    }
+  } 
 
   // Turn pulse ON after delay in non-blocking way
   // Since we're using a PNP high-side switch, pin LOW = pulse ON
@@ -209,7 +217,7 @@ void hall_trigger()
     // Calculate moving average period
     sum = sum - periods[index];         // Subtract last period
 
-    periods[index] = now - last_fall;   // Calculate period and store in array
+    periods[index] = last_fall > 0 ? now - last_fall : default_period;   // Calculate period and store in array
 
     sum = sum + periods[index];         // Add current period
 
@@ -217,13 +225,14 @@ void hall_trigger()
 
     // If we're at the end of the array...
     if (index >= SAMPLES) {
+      periods_full = true;
       index = 0;                        // Reset index
     }
 
-    if (sum > 0) {
+    if (periods_full) {
       period = sum / SAMPLES;           // Calculate the moving average
     } else {
-      period = periods[index - 1];      // Until we have filled our array to calculate a running average, use the raw readings
+      period = default_period;          // Until we have filled our array to calculate a running average, use the raw readings
     }
 
     last_fall = now;                    // Set time of this trigger for the next trigger
