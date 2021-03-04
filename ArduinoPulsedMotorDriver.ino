@@ -14,6 +14,7 @@
   * D2: A3144 Hall effect sensor
   * A0: 10K potentiometer to control duty cycle
   * A1: 10K potentiometer to control pulse timing
+  * A2: Voltage divider to measure battery voltage (1M & 100K 1% resistors for up to 55V)
 
   Outputs:
   * D8: Base of MJL21194 or similar NPN transistor, which powers the 
@@ -22,14 +23,13 @@
 
   Created 22/12/2020
   By Nick Kraakman
-  Modified 08/02/2021
+  Modified 03/03/2021
   By Nick Kraakman
 
   https://waveguide.blog/adams-motor-generator/
 
   TODO:   
   - implement input current sensing
-  - implement input voltage sensing
   - implement power logging
   - implement core temperature sensing
   - implement generator coil switching
@@ -46,6 +46,7 @@
 #define HALL_SENSOR   2         // HALL SENSOR: Digital IN 2
 #define DUTY_POT      A0        // Analog IN A0
 #define DELAY_POT     A1        // Analog IN A1
+#define V_SENSOR      A2        // Analog IN A2
 #define DRIVE_COIL    9         // DRIVE COIL: Digital OUTPUT 9
 
 static unsigned long periods[SAMPLES];  // Moving average period using several samples
@@ -59,6 +60,9 @@ volatile unsigned long last_fall = 0;   // Time of previous Hall trigger falling
 volatile unsigned long hall_period = 0; // Time during which Hall sensor was ON, half of that is rotor magnet aligned with center of drive core
 volatile bool hall = false;             // True if Hall sensor has been triggered, false once pulse completes
 static bool high = false;               // True if drive coil pin is HIGH, false if LOW
+
+static int voltage_value = 0;           // analog value from voltage divider, 0 - 1023
+static float voltage = 0.0;             // Measured voltage on V_SENSOR pin, 0 - 5V
 
 static int duty_value = 0;              // Analog value from duty pot, 0 - 1023
 static int delay_value = 0;             // analog value from delay pot, 0 - 1023
@@ -84,6 +88,7 @@ void setup() {
   pinMode(HALL_SENSOR, INPUT_PULLUP);
   pinMode(DUTY_POT, INPUT);
   pinMode(DELAY_POT, INPUT);
+  pinMode(V_SENSOR, INPUT);
   pinMode(DRIVE_COIL, OUTPUT);
   pinMode(LED_BUILTIN, OUTPUT);
   
@@ -99,7 +104,7 @@ void loop()
 {  
   now = micros();
   
-  get_pots();         // Read potentiometer values
+  read_analog();      // Read potentiometer values and battery voltage
 
   send_pulse();       // Send pulse to drive coils
 
@@ -108,16 +113,17 @@ void loop()
 
 
 /**
- * Read and store values from the potentiometers as analog 0 - 1023 values
+ * Read and store values from the potentiometers and voltage divider as analog 0 - 1023 values
  */
-void get_pots()
+void read_analog()
 {
-  if (millis() - last_read > 1)  // delay in between reads for stability
+  if (millis() - last_read > 10)  // delay in between reads for stability
   {
     last_read = millis();
     
     duty_value = analogRead(DUTY_POT);
     delay_value = analogRead(DELAY_POT);
+    voltage_value = analogRead(V_SENSOR);
   }           
 }
 
@@ -195,7 +201,13 @@ void print_data()
     Serial.print(",");
     Serial.print(period);
     Serial.print(",");
-    Serial.println(pulse_degrees);
+    Serial.print(pulse_degrees);
+    Serial.print(",");
+
+    // Source voltage, 
+    // 5 = reference voltage, 4.857 = voltage divider multiplier, adjust to your own situation
+    // See: https://startingelectronics.org/articles/arduino/measuring-voltage-with-arduino/
+    Serial.println(((voltage_value * 5.0) / 1024.0) * 4.857);
 
     last_print = millis();
   }
