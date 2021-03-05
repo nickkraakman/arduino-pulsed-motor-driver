@@ -63,6 +63,7 @@ volatile unsigned long hall_period = 0; // Time during which Hall sensor was ON,
 volatile bool hall = false;             // True if Hall sensor has been triggered, false once pulse completes
 static bool high = false;               // True if drive coil pin is HIGH, false if LOW
 
+static bool get_voltage = true;         // True if a new voltage measurement needs to be made
 static int voltage_value = 0;           // Analog value from voltage divider, 0 - 1023
 static float voltage = 0.0;             // Measured voltage on V_SENSOR pin, 0 - 5V
 
@@ -163,7 +164,13 @@ void read_analog()
     // These readings will take ~720µS in total, so quite long
     analogRead(DUTY_POT); duty_value = analogRead(DUTY_POT);
     analogRead(DELAY_POT); delay_value = analogRead(DELAY_POT);
-    analogRead(V_SENSOR); voltage_value = analogRead(V_SENSOR);
+
+    // We only need to get a voltage reading once every print cycle, saves ~240µS on other cycles
+    if (get_voltage)
+    {
+      analogRead(V_SENSOR); voltage_value = analogRead(V_SENSOR);
+      get_voltage = false;
+    }
 
     // Calculate pulse delay and pulse time
     // We divide by 2048 instead of 1024, because we only want a max of 1/2 period of delay, and max 50% duty
@@ -244,6 +251,8 @@ void print_data()
     // See: https://startingelectronics.org/articles/arduino/measuring-voltage-with-arduino/
     Serial.println(((voltage_value * 5.0) / 1024.0) * 4.857);
 
+    get_voltage = true;  // Now that we printed the voltage, we want to get a new voltage reading
+    
     last_print = millis();
   }
 }
