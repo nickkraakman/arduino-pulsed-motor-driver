@@ -193,25 +193,38 @@ void read_analog()
  */
 void send_pulse()
 { 
-  // Turn pulse ON after delay in non-blocking way
+  // Start pulsing after delay in non-blocking way
   if (!high && now - last_fall >= pulse_delay)
   {
-    //digitalWrite(DRIVE_COIL, HIGH);     // Turn pulse ON
-    PORTB |= (1<<PB1);                    // Set digital port 9 HIGH directly, digitalWrite too slow
-    //digitalWrite(LED_BUILTIN, HIGH);    // Turn LED ON
+    if (PULSES > 1)
+    {
+      // Calculate new pulse time if we're using multiple pulses per trigger
+      pulse_time = pulse_time / (PULSES + PULSES - 1);
+    }
     
-    high = true;
-  }
+    // Once we're pulsing, that's all we want to do, so we can use blocking delays (pfew!)
+    for (int i = 0; i < PULSES; i++) 
+    {
+      //digitalWrite(DRIVE_COIL, HIGH);     // Turn pulse ON
+      PORTB |= (1<<PB1);                    // Set digital port 9 HIGH directly, digitalWrite too slow
+      //digitalWrite(LED_BUILTIN, HIGH);    // Turn LED ON
+      high = true;
 
-  // Turn pulse OFF after delay and pulse time in non-blocking way
-  if (high && now - last_fall >= pulse_delay + pulse_time)
-  {
-    //digitalWrite(DRIVE_COIL, LOW);      // Turn pulse OFF
-    PORTB &= ~(1<<PB1);                   // Set digital port 9 LOW directly, digitalWrite too slow
-    //digitalWrite(LED_BUILTIN, LOW);     // Turn LED OFF
-    
-    high = false;
-    hall = false;                         // Reset hall variable
+      delayMicroseconds(pulse_time);
+
+      //digitalWrite(DRIVE_COIL, LOW);      // Turn pulse OFF
+      PORTB &= ~(1<<PB1);                   // Set digital port 9 LOW directly, digitalWrite too slow
+      //digitalWrite(LED_BUILTIN, LOW);     // Turn LED OFF
+      high = false;
+
+      // If there is another pulse coming, stay low until next loop
+      if (i + 1 < PULSES)
+      {
+        delayMicroseconds(pulse_time);
+      }
+    }
+
+    hall = false;                           // We're done pulsing, reset hall variable
   }
 }
 
