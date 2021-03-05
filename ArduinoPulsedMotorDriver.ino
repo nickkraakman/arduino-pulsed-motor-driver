@@ -22,7 +22,7 @@
 
   Created 22/12/2020
   By Nick Kraakman
-  Modified 08/02/2021
+  Modified 04/03/2021
   By Nick Kraakman
 
   https://waveguide.blog/adams-motor-generator/
@@ -42,6 +42,7 @@
  */
 #define NUMB_POLES    4         // Number of rotor magnet poles
 #define SAMPLES       8         // Number of samples used to smooth the period measurement
+#define PULSES        2         // Number of pulses per trigger
 
 #define HALL_SENSOR   2         // HALL SENSOR: Digital IN 2
 #define DUTY_POT      A0        // Analog IN A0
@@ -144,8 +145,6 @@ void send_pulse()
   } 
 
   // Turn pulse ON after delay in non-blocking way
-  // Since we're using a PNP high-side switch, pin LOW = pulse ON
-  // @TODO: handle micros overflow
   if (hall && !high && now - last_fall >= pulse_delay)
   {
     //digitalWrite(DRIVE_COIL, HIGH);     // Turn pulse ON
