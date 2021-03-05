@@ -1,5 +1,5 @@
 /*
-  Pulsed Motor Driver v0.2 by Waveguide
+  Pulsed Motor Driver v0.3 by Waveguide
 
   This sketch turns your Arduino into a controller and monitor for 
   pulsed electric motors, like the Adams Motor or the Bedini SG.
@@ -53,6 +53,7 @@ static unsigned long periods[SAMPLES];  // Moving average period using several s
 static bool periods_full = false;       // True if the periods array has been filled with samples
 static byte index = 0;                  // Indicates current place in period_array
 static unsigned long sum = 0;           // Running total of period samples
+static bool calc_period = true;         // True if a new period needs to be calculated
 
 volatile unsigned long now = 0;         // Current time in µS
 volatile unsigned long period = 0;      // Time between magnets passing by Hall sensor
@@ -61,7 +62,7 @@ volatile unsigned long hall_period = 0; // Time during which Hall sensor was ON,
 volatile bool hall = false;             // True if Hall sensor has been triggered, false once pulse completes
 static bool high = false;               // True if drive coil pin is HIGH, false if LOW
 
-static int voltage_value = 0;           // analog value from voltage divider, 0 - 1023
+static int voltage_value = 0;           // Analog value from voltage divider, 0 - 1023
 static float voltage = 0.0;             // Measured voltage on V_SENSOR pin, 0 - 5V
 
 static int duty_value = 0;              // Analog value from duty pot, 0 - 1023
@@ -80,9 +81,9 @@ static unsigned long default_period = 7000;  // While starting up, use this peri
  */
 void setup() {
   // Start serial output
-  Serial.begin(9600);  // Could be set to a higher baud value if needed
+  Serial.begin(115200);  // Set baud rate
   delay(1000);
-  Serial.println("\n\n*** Pulsed Motor Driver v0.2 by Waveguide ***\n\n");
+  Serial.println("\n\n*** Pulsed Motor Driver v0.3 by Waveguide ***\n\n");
 
   // Set pin modes
   pinMode(HALL_SENSOR, INPUT_PULLUP);
@@ -103,27 +104,82 @@ void setup() {
 void loop() 
 {  
   now = micros();
-  
-  read_analog();      // Read potentiometer values and battery voltage
 
-  send_pulse();       // Send pulse to drive coils
-
-  print_data();       // Log data to serial monitor every second
+  if (!hall)
+  {
+    // Stuff to do while we're NOT pulsing the coils,
+    // like performing calculations and printing data
+    calc_period();      // Calculate a new period
+    read_analog();      // Read potentiometer values and battery voltage
+    print_data();       // Log data to serial monitor every second
+  } else {
+    send_pulse();       // Send pulse to drive coils
+  }
 }
 
+
+/**
+ * Calculate the period between two Hall triggers
+ */
+void calc_period() 
+{
+  if (!calc_period)
+  {
+    return;  // Only calculate period if needed to preserve compute resources
+  }
+  
+  // Calculate moving average period
+  sum = sum - periods[index];         // Subtract last period
+
+  periods[index] = last_fall > 0 ? now - last_fall : default_period;   // Calculate period and store in array
+
+  sum = sum + periods[index];         // Add current period
+
+  index = index + 1;                  // Move pointer to next position in index
+
+  // If we're at the end of the array...
+  if (index >= SAMPLES) {
+    periods_full = true;
+    index = 0;                        // Reset index
+  }
+
+  if (periods_full) {
+    period = sum / SAMPLES;           // Calculate the moving average
+  } else {
+    period = default_period;          // Until we have filled our array to calculate a running average, use the raw readings
+  }
+
+  calc_period = false;
+}
 
 /**
  * Read and store values from the potentiometers and voltage divider as analog 0 - 1023 values
  */
 void read_analog()
 {
-  if (millis() - last_read > 10)  // delay in between reads for stability
+  // Read only when NOT pulsing, and delay between reads for stability
+  if (millis() - last_read > 10)
   {
     last_read = millis();
-    
-    duty_value = analogRead(DUTY_POT);
-    delay_value = analogRead(DELAY_POT);
-    voltage_value = analogRead(V_SENSOR);
+
+    // Apparently we need to read an analog pin TWICE and discard the first read to increase the odds of a correct reading...
+    // These readings will take ~720µS in total, so quite long
+    analogRead(DUTY_POT); duty_value = analogRead(DUTY_POT);
+    analogRead(DELAY_POT); delay_value = analogRead(DELAY_POT);
+    analogRead(V_SENSOR); voltage_value = analogRead(V_SENSOR);
+
+    // Calculate pulse delay and pulse time
+    // We divide by 2048 instead of 1024, because we only want a max of 1/2 period of delay, and max 50% duty
+    // This also gives our potentiometers more resolution and thus allows for finer adjustments and smaller unwanted variations
+    pulse_delay = (period * delay_value) / 2048;    // Delay is a % of the period, so will pulse at same point for low and high RPMs
+
+    pulse_time = (period * duty_value) / 2048;      // Multiply period by duty cycle to get pulse ON time
+
+    // We set a minimum pulse time of 1000µS to help get the motor started
+    if (!periods_full && pulse_time < 1000)
+    {
+      pulse_time = 1000;
+    }
   }           
 }
 
@@ -133,26 +189,8 @@ void read_analog()
  */
 void send_pulse()
 { 
-  if (hall)
-  {
-    // Calculate pulse delay and pulse time
-    // We divide by 2048 instead of 1024, because we only want a maximum of 1/2 period of delay
-    // This also gives our potentiometer more resolution and thus allows for finer adjustments
-    pulse_delay = (period * delay_value) / 2048;    // Delay is a % of the period, so will pulse at same point for low and high RPMs
-
-    pulse_time = (period * duty_value) / 1024;      // Multiply period by duty cycle to get pulse ON time
-
-    // We set a minimum pulse time of 1000µS to help get the motor started
-    if (!periods_full && pulse_time < 1000)
-    {
-      pulse_time = 1000;
-    }
-  } 
-
   // Turn pulse ON after delay in non-blocking way
-  // Since we're using a PNP high-side switch, pin LOW = pulse ON
-  // @TODO: handle micros overflow
-  if (hall && !high && now - last_fall >= pulse_delay)
+  if (!high && now - last_fall >= pulse_delay)
   {
     //digitalWrite(DRIVE_COIL, HIGH);     // Turn pulse ON
     PORTB |= (1<<PB1);                    // Set digital port 9 HIGH directly, digitalWrite too slow
@@ -162,7 +200,7 @@ void send_pulse()
   }
 
   // Turn pulse OFF after delay and pulse time in non-blocking way
-  if (hall && high && now - last_fall >= pulse_delay + pulse_time)
+  if (high && now - last_fall >= pulse_delay + pulse_time)
   {
     //digitalWrite(DRIVE_COIL, LOW);      // Turn pulse OFF
     PORTB &= ~(1<<PB1);                   // Set digital port 9 LOW directly, digitalWrite too slow
@@ -225,29 +263,8 @@ void hall_trigger()
     hall_period = now - last_fall;
   } else {
     // Falling edge
-    
-    // Calculate moving average period
-    sum = sum - periods[index];         // Subtract last period
-
-    periods[index] = last_fall > 0 ? now - last_fall : default_period;   // Calculate period and store in array
-
-    sum = sum + periods[index];         // Add current period
-
-    index = index + 1;                  // Move pointer to next position in index
-
-    // If we're at the end of the array...
-    if (index >= SAMPLES) {
-      periods_full = true;
-      index = 0;                        // Reset index
-    }
-
-    if (periods_full) {
-      period = sum / SAMPLES;           // Calculate the moving average
-    } else {
-      period = default_period;          // Until we have filled our array to calculate a running average, use the raw readings
-    }
-
     last_fall = now;                    // Set time of this trigger for the next trigger
+    calc_period = true;                 // True, so a new period will be calculated
     hall = true;
   }
 }
