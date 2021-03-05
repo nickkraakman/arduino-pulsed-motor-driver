@@ -23,7 +23,7 @@
 
   Created 22/12/2020
   By Nick Kraakman
-  Modified 03/03/2021
+  Modified 05/03/2021
   By Nick Kraakman
 
   https://waveguide.blog/adams-motor-generator/
@@ -127,11 +127,6 @@ void calc_period()
   {
     return;  // Only calculate period if needed to preserve compute resources
   }
-  
-  // Calculate moving average period
-  sum = sum - periods[index];         // Subtract last period
-
-  periods[index] = last_fall > 0 ? now - last_fall : default_period;   // Calculate period and store in array
 
   sum = sum + periods[index];         // Add current period
 
@@ -151,6 +146,7 @@ void calc_period()
 
   calc_period = false;
 }
+
 
 /**
  * Read and store values from the potentiometers and voltage divider as analog 0 - 1023 values
@@ -263,6 +259,11 @@ void hall_trigger()
     hall_period = now - last_fall;
   } else {
     // Falling edge
+    
+    // Calculate moving average period (only the necessary part, rest happens in calc_period() function to save processing time)
+    sum = sum - periods[index];         // Subtract last period
+    periods[index] = last_fall > 0 ? now - last_fall : default_period;   // Calculate period and store in array
+  
     last_fall = now;                    // Set time of this trigger for the next trigger
     calc_period = true;                 // True, so a new period will be calculated
     hall = true;
