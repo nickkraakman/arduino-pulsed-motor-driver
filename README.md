@@ -15,13 +15,13 @@ The serial monitor also logs RPM, duty cycle, pulse duration, and the timing of 
 
 Created 22/12/2020
 By Nick Kraakman
-Modified 25/02/2021
+Modified 10/03/2021
 By Nick Kraakman
 
 https://waveguide.blog/adams-motor-generator/
 
 ## Schematic
-![Schematic for v0.2](https://waveguide.blog/static/adams/circuit-24-02-2021.png)
+![Schematic for v0.3](https://waveguide.blog/static/adams/schematic.png)
 
 ## Todo  
 - implement input current sensing
