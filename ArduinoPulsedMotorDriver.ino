@@ -33,7 +33,6 @@
   - implement power logging
   - implement core temperature sensing
   - implement generator coil switching
-  - implement multi-pulse option
 */
 
 
