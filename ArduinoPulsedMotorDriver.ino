@@ -41,7 +41,7 @@
  */
 #define NUMB_POLES    4         // Number of rotor magnet poles
 #define SAMPLES       8         // Number of samples used to smooth the period measurement
-#define PULSES        2         // Number of pulses per trigger
+#define PULSES        1         // Number of pulses per trigger
 
 #define HALL_SENSOR   2         // HALL SENSOR: Digital IN 2
 #define DUTY_POT      A0        // Analog IN A0
@@ -49,18 +49,19 @@
 #define V_SENSOR      A2        // Analog IN A2
 #define DRIVE_COIL    9         // DRIVE COIL: Digital OUTPUT 9
 
-static unsigned long periods[SAMPLES];  // Moving average period using several samples
-static bool periods_full = false;       // True if the periods array has been filled with samples
-static byte index = 0;                  // Indicates current place in period_array
-static unsigned long sum = 0;           // Running total of period samples
-static bool calc_period = true;         // True if a new period needs to be calculated
+static float rpm = 0.0;                 // RPM of the motor
 
-volatile unsigned long now = 0;         // Current time in µS
-volatile unsigned long period = 0;      // Time between magnets passing by Hall sensor
-volatile unsigned long last_fall = 0;   // Time of previous Hall trigger falling edge
-volatile unsigned long hall_period = 0; // Time during which Hall sensor was ON, half of that is rotor magnet aligned with center of drive core
-volatile bool hall = false;             // True if Hall sensor has been triggered, false once pulse completes
-static bool high = false;               // True if drive coil pin is HIGH, false if LOW
+volatile unsigned long now = 0;               // Current time in µS
+volatile unsigned long period = 0;            // Time between magnets passing by Hall sensor
+volatile unsigned long last_fall = micros();  // Time of previous Hall trigger falling edge, init as micros() instead of 0, else first calculated period is way too large, causing trouble with starting the motor
+volatile unsigned long hall_period = 0;       // Time during which Hall sensor was ON, half of that is rotor magnet aligned with center of drive core
+volatile bool hall = false;                   // True if Hall sensor has been triggered, false once pulse completes
+volatile unsigned long periods[SAMPLES];      // Moving average period using several samples
+volatile bool periods_full = false;           // True if the periods array has been filled with samples
+volatile byte index = 0;                      // Indicates current place in period_array
+volatile unsigned long sum = 0;               // Running total of period samples
+
+static bool high = false;                     // True if drive coil pin is HIGH, false if LOW
 
 static bool get_voltage = true;         // True if a new voltage measurement needs to be made
 static int voltage_value = 0;           // Analog value from voltage divider, 0 - 1023
@@ -75,14 +76,13 @@ static unsigned long pulse_time = 0;    // Pulse duration in µS, controlled by 
 static unsigned long last_print = 0;    // Time of previous print to serial monitor in mS
 static unsigned long last_read = 0;     // Time of previous analogRead of potentiometers in mS
 
-static unsigned long default_period = 7000;  // While starting up, use this period  
 
 /**
  * Setup code, which runs once
  */
 void setup() {
   // Start serial output
-  Serial.begin(115200);  // Set baud rate
+  Serial.begin(9600);  // Set baud rate
   delay(1000);
   Serial.println("\n\n*** Pulsed Motor Driver v0.3 by Waveguide ***\n\n");
 
@@ -110,42 +110,11 @@ void loop()
   {
     // Stuff to do while we're NOT pulsing the coils,
     // like performing calculations and printing data
-    calc_period();      // Calculate a new period
     read_analog();      // Read potentiometer values and battery voltage
     print_data();       // Log data to serial monitor every second
   } else {
     send_pulse();       // Send pulse to drive coils
   }
-}
-
-
-/**
- * Calculate the period between two Hall triggers
- */
-void calc_period() 
-{
-  if (!calc_period)
-  {
-    return;  // Only calculate period if needed to preserve compute resources
-  }
-
-  sum = sum + periods[index];         // Add current period
-
-  index = index + 1;                  // Move pointer to next position in index
-
-  // If we're at the end of the array...
-  if (index >= SAMPLES) {
-    periods_full = true;
-    index = 0;                        // Reset index
-  }
-
-  if (periods_full) {
-    period = sum / SAMPLES;           // Calculate the moving average
-  } else {
-    period = default_period;          // Until we have filled our array to calculate a running average, use the raw readings
-  }
-
-  calc_period = false;
 }
 
 
@@ -159,14 +128,20 @@ void read_analog()
   {
     last_read = millis();
 
-    // Apparently we need to read an analog pin TWICE and discard the first read to increase the odds of a correct reading...
-    // These readings will take ~720µS in total, so quite long
-    analogRead(DUTY_POT); duty_value = analogRead(DUTY_POT);
-    analogRead(DELAY_POT); delay_value = analogRead(DELAY_POT);
+    // We set 50% duty value if RPM is low to help get the motor started
+    if (rpm < 300)
+    {
+      duty_value = 512;
+    } else {
+      duty_value = analogRead(DUTY_POT);
+    }
+    
+    delay_value = analogRead(DELAY_POT);
 
     // We only need to get a voltage reading once every print cycle, saves ~240µS on other cycles
     if (get_voltage)
     {
+      // Apparently we need to read an analog pin TWICE and discard the first read to increase the odds of a correct reading...
       analogRead(V_SENSOR); voltage_value = analogRead(V_SENSOR);
       get_voltage = false;
     }
@@ -176,13 +151,7 @@ void read_analog()
     // This also gives our potentiometers more resolution and thus allows for finer adjustments and smaller unwanted variations
     pulse_delay = (period * delay_value) / 2048;    // Delay is a % of the period, so will pulse at same point for low and high RPMs
 
-    pulse_time = (period * duty_value) / 2048;      // Multiply period by duty cycle to get pulse ON time
-
-    // We set a minimum pulse time of 1000µS to help get the motor started
-    if (!periods_full && pulse_time < 1000)
-    {
-      pulse_time = 1000;
-    }
+    pulse_time = (period * duty_value) / 1024;      // Multiply period by duty cycle to get pulse ON time
   }           
 }
 
@@ -244,8 +213,10 @@ void print_data()
     // So period/(360/NUMB_POLES) = time per degree of rotation
     // A negative value means pulsed before rotor magnet was aligned with the drive coil core
     pulse_degrees = (pulse_delay - ((float) hall_period / 2))/(period / (360 / NUMB_POLES));
+
+    rpm = 60*((float) 1000000/(period*NUMB_POLES));
     
-    Serial.print(60*((float) 1000000/(period*NUMB_POLES))); // RPM
+    Serial.print((int) rpm); // RPM
     Serial.print(",");
     Serial.print(((float) duty_value/1024)*100);            // Duty cycle in %
     Serial.print(",");
@@ -282,12 +253,27 @@ void hall_trigger()
   } else {
     // Falling edge
     
-    // Calculate moving average period (only the necessary part, rest happens in calc_period() function to save processing time)
+    // Calculate moving average period (only the necessary part, rest happens in calculate_period() function to save processing time)
     sum = sum - periods[index];         // Subtract last period
-    periods[index] = last_fall > 0 ? now - last_fall : default_period;   // Calculate period and store in array
-  
+    periods[index] = now - last_fall;   // Calculate period and store in array
     last_fall = now;                    // Set time of this trigger for the next trigger
-    calc_period = true;                 // True, so a new period will be calculated
+
+    sum = sum + periods[index];         // Add current period
+
+    index = index + 1;                  // Move pointer to next position in index
+  
+    // If we're at the end of the array...
+    if (index >= SAMPLES) {
+      periods_full = true;
+      index = 0;                        // Reset index
+    }
+  
+    if (periods_full) {
+      period = sum / SAMPLES;           // Calculate the moving average
+    } else {
+      period = periods[index - 1];      // Until we have filled our array to calculate a running average, use the raw readings
+    }
+    
     hall = true;
   }
 }
