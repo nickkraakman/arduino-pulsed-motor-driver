@@ -49,7 +49,7 @@
 #define V_SENSOR      A2        // Analog IN A2
 #define DRIVE_COIL    9         // DRIVE COIL: Digital OUTPUT 9
 
-static float rpm = 0.0;                 // RPM of the motor
+static float rpm = 0.0;         // RPM of the motor
 
 volatile unsigned long now = 0;               // Current time in µS
 volatile unsigned long period = 0;            // Time between magnets passing by Hall sensor
@@ -61,6 +61,7 @@ volatile bool periods_full = false;           // True if the periods array has b
 volatile byte index = 0;                      // Indicates current place in period_array
 volatile unsigned long sum = 0;               // Running total of period samples
 
+static bool pulsing = false;                  // True while we're pulsing the drive coils
 static bool high = false;                     // True if drive coil pin is HIGH, false if LOW
 
 static bool get_voltage = true;         // True if a new voltage measurement needs to be made
@@ -106,13 +107,16 @@ void loop()
 {  
   now = micros();
 
-  if (!hall)
+  if (!pulsing)
   {
     // Stuff to do while we're NOT pulsing the coils,
     // like performing calculations and printing data
     read_analog();      // Read potentiometer values and battery voltage
     print_data();       // Log data to serial monitor every second
-  } else {
+  } 
+
+  if (hall) 
+  {
     send_pulse();       // Send pulse to drive coils
   }
 }
@@ -164,6 +168,8 @@ void send_pulse()
   // Start pulsing after delay in non-blocking way
   if (!high && now - last_fall >= pulse_delay)
   {
+    pulsing = true;
+    
     if (PULSES > 1)
     {
       // Calculate new pulse time if we're using multiple pulses per trigger
@@ -192,6 +198,7 @@ void send_pulse()
       }
     }
 
+    pulsing = false;
     hall = false;                           // We're done pulsing, reset hall variable
   }
 }
