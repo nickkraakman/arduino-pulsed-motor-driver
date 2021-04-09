@@ -40,7 +40,7 @@
  * Variables
  */
 #define NUMB_POLES    4         // Number of rotor magnet poles
-#define SAMPLES       8         // Number of samples used to smooth the period measurement
+//#define SAMPLES       8         // Number of samples used to smooth the period measurement
 #define PULSES        1         // Number of pulses per trigger
 
 #define HALL_SENSOR   2         // HALL SENSOR: Digital IN 2
@@ -51,15 +51,19 @@
 
 static float rpm = 0.0;         // RPM of the motor
 
-volatile unsigned long now = 0;               // Current time in µS
+static unsigned long now = 0;                 // Current time in µS
+
 volatile unsigned long period = 0;            // Time between magnets passing by Hall sensor
 volatile unsigned long last_fall = micros();  // Time of previous Hall trigger falling edge, init as micros() instead of 0, else first calculated period is way too large, causing trouble with starting the motor
 volatile unsigned long hall_period = 0;       // Time during which Hall sensor was ON, half of that is rotor magnet aligned with center of drive core
 volatile bool hall = false;                   // True if Hall sensor has been triggered, false once pulse completes
+
+/*
 volatile unsigned long periods[SAMPLES];      // Moving average period using several samples
 volatile bool periods_full = false;           // True if the periods array has been filled with samples
 volatile byte index = 0;                      // Indicates current place in period_array
 volatile unsigned long sum = 0;               // Running total of period samples
+*/
 
 static bool pulsing = false;                  // True while we're pulsing the drive coils
 static bool high = false;                     // True if drive coil pin is HIGH, false if LOW
@@ -132,13 +136,7 @@ void read_analog()
   {
     last_read = millis();
 
-    // We set 50% duty value if RPM is low to help get the motor started
-    if (rpm < 300)
-    {
-      duty_value = 512;
-    } else {
-      duty_value = analogRead(DUTY_POT);
-    }
+    duty_value = analogRead(DUTY_POT);
     
     delay_value = analogRead(DELAY_POT);
 
@@ -156,6 +154,18 @@ void read_analog()
     pulse_delay = (period * delay_value) / 2048;    // Delay is a % of the period, so will pulse at same point for low and high RPMs
 
     pulse_time = (period * duty_value) / 1024;      // Multiply period by duty cycle to get pulse ON time
+
+    // To help start the motor, always start pulse at alignment
+    if (rpm < 300)
+    {
+      pulse_delay = hall_period/2;
+    }
+
+    // Set maximum pulse duration of 10,000 µS
+    if (pulse_time > 10000)
+    {
+      pulse_time = 10000;
+    }
   }           
 }
 
@@ -198,8 +208,9 @@ void send_pulse()
       }
     }
 
+    // We're done pulsing, reset variables
     pulsing = false;
-    hall = false;                           // We're done pulsing, reset hall variable
+    hall = false;
   }
 }
 
@@ -253,14 +264,17 @@ void print_data()
  */
 void hall_trigger()
 {
+  unsigned long time_now = micros();
+  
   if (PIND & (1<<PD2))  // Direct read of digital pin 2 for much faster processing than digitalRead()
   {
     // Rising edge
-    hall_period = now - last_fall;
+    hall_period = time_now - last_fall;
   } else {
     // Falling edge
-    
-    // Calculate moving average period (only the necessary part, rest happens in calculate_period() function to save processing time)
+
+    /*
+    // Calculate moving average period
     sum = sum - periods[index];         // Subtract last period
     periods[index] = now - last_fall;   // Calculate period and store in array
     last_fall = now;                    // Set time of this trigger for the next trigger
@@ -280,7 +294,11 @@ void hall_trigger()
     } else {
       period = periods[index - 1];      // Until we have filled our array to calculate a running average, use the raw readings
     }
+    */
     
+    
+    period = time_now - last_fall;
+    last_fall = time_now;
     hall = true;
   }
 }
