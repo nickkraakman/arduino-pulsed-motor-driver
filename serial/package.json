@@ -1,0 +1,25 @@
+{
+  "name": "serial",
+  "version": "1.0.0",
+  "description": "Read serial data from an Arduino and display on a web page",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nickkraakman/arduino-pulsed-motor-driver.git"
+  },
+  "author": "Nick Kraakman",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/nickkraakman/arduino-pulsed-motor-driver/issues"
+  },
+  "homepage": "https://github.com/nickkraakman/arduino-pulsed-motor-driver#readme",
+  "dependencies": {
+    "serialport": "^9.0.7",
+    "socket.io": "^4.0.1",
+    "express": "latest"
+  }
+}
