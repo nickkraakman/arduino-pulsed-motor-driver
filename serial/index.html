@@ -6,8 +6,10 @@
   <script src="https://unpkg.com/vue"></script>
   <script src="node_modules/socket.io/client-dist/socket.io.min.js"></script>
   <script>
+    // Initialize socket.io
     var socket = io('localhost:3000')
 
+    // Listen for 'arduino' messages
     socket.on('arduino', function(data) {
       console.log(data)
     })

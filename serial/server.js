@@ -4,7 +4,7 @@ const baudRate = 9600  // CHANGE THIS TO YOUR ARDUINO BAUD RATE
 const httpServer = require("http").createServer()
 const io = require("socket.io")(httpServer, {
   cors: {
-    origin: "http://localhost:8080",
+    origin: "http://127.0.0.1:8080",
   },
 })
 httpServer.listen(3000, () => {
@@ -71,7 +71,6 @@ parser.on('data', function (data) {
     // Send parsed arduino data to HTML file using sockets
     io.sockets.emit('arduino', dataObject)
 })
-
 
 io.on('connection', function (socket) {
     // If a web browser disconnects from Socket.IO then this callback is called.
