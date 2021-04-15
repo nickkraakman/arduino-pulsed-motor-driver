@@ -18,6 +18,8 @@
   },
   "homepage": "https://github.com/nickkraakman/arduino-pulsed-motor-driver#readme",
   "dependencies": {
+    "bootstrap": "^4.6.0",
+    "jquery": "^3.6.0",
     "serialport": "^9.0.7",
     "socket.io": "^4.0.1"
   },
