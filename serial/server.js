@@ -1,4 +1,4 @@
-const arduinoPort = '/dev/cu.usbmodem14101'  // CHANGE THIS TO YOUR ARDUINO SERIAL PORT
+const arduinoPort = '/dev/cu.usbmodem14101'  // CHANGE THIS TO YOUR ARDUINO SERIAL PORT > uno = '/dev/cu.usbserial-1410' , mega = '/dev/cu.usbmodem14101'
 const baudRate = 9600  // CHANGE THIS TO YOUR ARDUINO BAUD RATE
 
 const httpServer = require("http").createServer()

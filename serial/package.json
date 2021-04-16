@@ -20,6 +20,7 @@
   "dependencies": {
     "bootstrap": "^4.6.0",
     "jquery": "^3.6.0",
+    "lightweight-charts": "^3.3.0",
     "serialport": "^9.0.7",
     "socket.io": "^4.0.1"
   },
