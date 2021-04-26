@@ -248,9 +248,9 @@ void print_data()
     Serial.print(",");
 
     // Source voltage, 
-    // 5 = reference voltage, 4.857 = voltage divider multiplier, adjust to your own situation
+    // 5 = reference voltage, 8.657 = voltage divider multiplier, adjust to your own situation
     // See: https://startingelectronics.org/articles/arduino/measuring-voltage-with-arduino/
-    Serial.println(((voltage_value * 5.0) / 1024.0) * 4.857);
+    Serial.println(((voltage_value * 5.0) / 1024.0) * 8.657);
 
     get_voltage = true;  // Now that we printed the voltage, we want to get a new voltage reading
     
