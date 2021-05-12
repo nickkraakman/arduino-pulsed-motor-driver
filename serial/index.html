@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Pulsed Motor Dashboard</title>
+  
+  <link rel="stylesheet" href="node_modules/bootstrap/dist/css/bootstrap.min.css">
+
+  <script src="node_modules/jquery/dist/jquery.min.js"></script>
+  <script src="node_modules/bootstrap/dist/js/bootstrap.min.js"></script>
+
+  <script src="node_modules/socket.io/client-dist/socket.io.min.js"></script>
+
+  <script src="node_modules/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+
+  <script>
+    // ## @TODO: resize chart on screen resize to fit the RPM box
+    var lineSeries
+    var seconds = 0
+
+    function displayData(data)
+    {
+      $('#card-rpm .card-text').text(data.rpm + ' RPM') 
+      $('#card-duty .card-text').text(data.duty + '%')
+      $('#card-pulse-time .card-text').text(data.pulseTime + ' µS')
+      $('#card-pulse-delay .card-text').text(data.pulseDelay + ' µS (' + data.pulseDegrees + 'º)')
+      $('#card-period .card-text').text(data.period + ' µS')
+      $('#card-voltage .card-text').text(data.voltage + ' V')
+
+      // Add data to chart
+      lineSeries.update({
+        time: seconds,
+        value: data.rpm
+      })
+    }
+
+    // Initialize socket.io
+    var socket = io('localhost:3000')
+
+    // Listen for 'arduino' messages
+    socket.on('arduino', function(data) {
+      console.log(data)
+      seconds++
+      displayData(data)
+    })
+
+    // Stuff that requires the HTML to be loaded goes into the .ready() function
+    $(document).ready(function() {
+      // Create RPM chart
+      const chartContainer = document.getElementById('rpm-chart')
+      const chart = LightweightCharts.createChart(chartContainer, { 
+        width: 400, 
+        height: 200,
+        localization: {
+            dateFormat: '',
+        },
+        grid: {
+          horzLines: {
+            color: '#eee',
+          },
+          vertLines: {
+            color: '#eee',
+          },
+        },
+        timeScale: {
+          timeVisible: true,
+          secondsVisible: true,
+          tickMarkFormatter: (time) => {
+              return time
+          }
+        },
+        crosshair: {
+          visible: false
+        }
+      })
+
+      lineSeries = chart.addLineSeries()
+    })
+  </script>
+</head>
+<body>
+  <div class="d-flex flex-column flex-md-row align-items-center p-3 px-md-4 mb-3 bg-white border-bottom shadow-sm">
+    <h5 class="my-0 mr-md-auto font-weight-normal">Pulsed Motor Dashboard</h5>
+
+    <a href="https://waveguide.blog/" title="Experimental energy research | Waveguide" target="_blank"> 
+      <img src="img/waveguide-logo.svg" alt="Experimental energy research | Waveguide logo" title="Experimental energy research | Waveguide logo" height="50" width="150" scale="0" class="nolazy"> 
+    </a>
+  </div>
+
+  <div class="container-fluid">
+    <div class="card-columns">
+      <div class="card" id="card-rpm">
+        <div class="card-header">
+          RPM
+        </div>
+        <div class="card-body text-center">
+          <h1 class="card-text">-</h1>
+          <div id="rpm-chart"></div>
+        </div>
+      </div>
+
+      <div class="card" id="card-duty">
+        <div class="card-header">
+          Duty Cycle
+        </div>
+        <div class="card-body text-center">
+          <h1 class="card-text">-</h1>
+        </div>
+      </div>
+
+      <div class="card" id="card-pulse-time">
+        <div class="card-header">
+          Pulse Duration
+        </div>
+        <div class="card-body text-center">
+          <h1 class="card-text">-</h1>
+        </div>
+      </div>
+
+      <div class="card" id="card-pulse-delay">
+        <div class="card-header">
+          Pulse Delay
+        </div>
+        <div class="card-body text-center">
+          <h1 class="card-text">-</h1>
+        </div>
+      </div>
+
+      <div class="card" id="card-period">
+        <div class="card-header">
+          Period
+        </div>
+        <div class="card-body text-center">
+          <h1 class="card-text">-</h1>
+        </div>
+      </div>
+
+      <div class="card" id="card-voltage">
+        <div class="card-header">
+          Voltage
+        </div>
+        <div class="card-body text-center">
+          <h1 class="card-text">-</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
