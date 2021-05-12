@@ -23,7 +23,7 @@
 
   Created 22/12/2020
   By Nick Kraakman
-  Modified 05/03/2021
+  Modified 12/05/2021
   By Nick Kraakman
 
   https://waveguide.blog/adams-motor-generator/
@@ -76,7 +76,8 @@ static int duty_value = 0;              // Analog value from duty pot, 0 - 1023
 static int delay_value = 0;             // analog value from delay pot, 0 - 1023
 static unsigned long pulse_delay = 0;   // Pulse delay in µS after Hall interrupt, controlled by potentiometer
 static int pulse_degrees = 0;           // Degrees before or after the rotor magnet aligns with drive core at which the pulse started
-static unsigned long pulse_time = 0;    // Pulse duration in µS, controlled by potentiometer
+static unsigned long pulse_time = 0;    // Pulse ON duration in µS, controlled by potentiometer
+static unsigned int off_time = 500;     // Pulse OFF duration in µS when multiple pulses are used
 
 static unsigned long last_print = 0;    // Time of previous print to serial monitor in mS
 static unsigned long last_read = 0;     // Time of previous analogRead of potentiometers in mS
@@ -183,7 +184,7 @@ void send_pulse()
     if (PULSES > 1)
     {
       // Calculate new pulse time if we're using multiple pulses per trigger
-      pulse_time = pulse_time / (PULSES + PULSES - 1);
+      pulse_time = (pulse_time - ((PULSES - 1) * off_time)) / PULSES;
     }
     
     // Once we're pulsing, that's all we want to do, so we can use blocking delays (pfew!)
@@ -204,7 +205,7 @@ void send_pulse()
       // If there is another pulse coming, stay low until next loop
       if (i + 1 < PULSES)
       {
-        delayMicroseconds(pulse_time);
+        delayMicroseconds(off_time);
       }
     }
 
